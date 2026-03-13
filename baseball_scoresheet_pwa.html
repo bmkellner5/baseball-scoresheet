@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scoresheet">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a2240">
+<title>Baseball Scoresheet</title>
+
+<!-- Inline SVG favicon as data URI -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚾</text></svg>">
+
+<!-- Apple touch icon as inline canvas-generated PNG via script below -->
+<link rel="apple-touch-icon" id="appleIcon">
+
+<!-- Inline PWA manifest as data URI -->
+<link rel="manifest" href="data:application/json;charset=utf-8,%7B%22name%22%3A%22Baseball%20Scoresheet%22%2C%22short_name%22%3A%22Scoresheet%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%231c1c1e%22%2C%22theme_color%22%3A%22%230a2240%22%2C%22orientation%22%3A%22portrait%22%7D">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    background: #1c1c1e;
+    color: #f2f2f7;
+    min-height: 100vh;
+    /* Safe area insets for notch/Dynamic Island */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: calc(40px + env(safe-area-inset-bottom));
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  header {
+    background: linear-gradient(135deg, #1a3a5c, #0a2240);
+    padding: 16px;
+    text-align: center;
+    border-bottom: 2px solid #f5a623;
+  }
+  header h1 { font-size: 22px; font-weight: 700; color: #f5a623; letter-spacing: 1px; }
+  header p { font-size: 12px; color: #aaa; margin-top: 2px; }
+
+  /* Install banner */
+  #installBanner {
+    display: none;
+    background: #1a3a5c;
+    border-bottom: 1px solid #f5a623;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #f2f2f7;
+    text-align: center;
+    line-height: 1.6;
+  }
+  #installBanner strong { color: #f5a623; }
+  #installBanner button {
+    margin-top: 6px;
+    background: #f5a623;
+    border: none;
+    border-radius: 6px;
+    color: #1c1c1e;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 5px 14px;
+    cursor: pointer;
+  }
+
+  .game-info {
+    background: #2c2c2e;
+    margin: 12px;
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .game-info input {
+    flex: 1;
+    min-width: 120px;
+    background: #3a3a3c;
+    border: 1px solid #48484a;
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: #f2f2f7;
+    font-size: 14px;
+  }
+  .game-info input::placeholder { color: #636366; }
+
+  .tabs {
+    display: flex;
+    margin: 0 12px 12px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #2c2c2e;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    background: transparent;
+    color: #8e8e93;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab-btn.active {
+    background: #f5a623;
+    color: #1c1c1e;
+    border-radius: 10px;
+  }
+
+  .team-section { display: none; padding: 0 12px; }
+  .team-section.active { display: block; }
+
+  .team-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .team-header input {
+    flex: 1;
+    background: #2c2c2e;
+    border: 1px solid #48484a;
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #f5a623;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .team-score-badge {
+    background: #f5a623;
+    color: #1c1c1e;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 18px;
+    font-weight: 800;
+    min-width: 50px;
+    text-align: center;
+  }
+
+  .inning-header {
+    display: grid;
+    grid-template-columns: 32px 1fr 48px repeat(6, 36px) 44px 44px;
+    background: #1a3a5c;
+    padding: 6px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #f5a623;
+    gap: 2px;
+    text-align: center;
+  }
+  .inning-header .lbl { text-align: left; }
+
+  .scoresheet {
+    background: #2c2c2e;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+
+  .player-row {
+    display: grid;
+    grid-template-columns: 32px 1fr 48px repeat(6, 36px) 44px 44px;
+    padding: 5px 8px;
+    gap: 2px;
+    border-bottom: 1px solid #3a3a3c;
+    align-items: center;
+  }
+  .player-row:last-child { border-bottom: none; }
+  .player-row:nth-child(even) { background: #252527; }
+
+  .player-num {
+    font-size: 11px;
+    color: #8e8e93;
+    text-align: center;
+    font-weight: 600;
+  }
+  .player-name-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #48484a;
+    color: #f2f2f7;
+    font-size: 13px;
+    padding: 2px 4px;
+    width: 100%;
+    min-width: 0;
+  }
+  .player-name-input:focus { outline: none; border-bottom-color: #f5a623; }
+
+  .pos-input {
+    background: #3a3a3c;
+    border: 1px solid #48484a;
+    border-radius: 4px;
+    color: #f5a623;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    padding: 2px;
+    width: 100%;
+  }
+  .pos-input:focus { outline: none; border-color: #f5a623; }
+
+  .inning-cell-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .inning-cell {
+    background: #3a3a3c;
+    border-radius: 4px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+    color: #f2f2f7;
+    border: 1px solid #48484a;
+    transition: background 0.15s;
+    min-height: 26px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .inning-cell.hit        { background: #1e5c2e; border-color: #2ecc71; color: #2ecc71; }
+  .inning-cell.out        { background: #5c1e1e; border-color: #e74c3c; color: #e74c3c; }
+  .inning-cell.walk       { background: #3a3a1e; border-color: #f5a623; color: #f5a623; }
+  .inning-cell.strikeout  { background: #4a1e5c; border-color: #9b59b6; color: #9b59b6; }
+  .inning-cell.error      { background: #5c3a1e; border-color: #e67e22; color: #e67e22; }
+
+  .run-toggle {
+    background: #2c2c2e;
+    border: 1px solid #48484a;
+    border-radius: 4px;
+    width: 100%;
+    min-height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 9px;
+    font-weight: 800;
+    color: #48484a;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  .run-toggle.scored {
+    background: #1e3a5c;
+    border-color: #3498db;
+    color: #3498db;
+  }
+
+  .pitch-count-input {
+    background: #3a3a3c;
+    border: 1px solid #48484a;
+    border-radius: 4px;
+    color: #3498db;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    padding: 2px;
+    width: 100%;
+    min-height: 30px;
+  }
+  .pitch-count-input:focus { outline: none; border-color: #3498db; }
+
+  .ab-total {
+    background: #2c2c2e;
+    border: 1px solid #48484a;
+    border-radius: 4px;
+    color: #f5a623;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    padding: 2px;
+    width: 100%;
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .inning-totals-row {
+    display: grid;
+    grid-template-columns: 32px 1fr 48px repeat(6, 36px) 44px 44px;
+    padding: 6px 8px;
+    gap: 2px;
+    background: #1a3a5c;
+    align-items: center;
+    border-top: 2px solid #f5a623;
+  }
+  .inning-total-cell {
+    background: #0a2240;
+    border-radius: 4px;
+    color: #3498db;
+    font-size: 12px;
+    font-weight: 800;
+    text-align: center;
+    padding: 4px 2px;
+    min-height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .total-label {
+    font-size: 11px;
+    color: #f5a623;
+    font-weight: 700;
+    grid-column: span 2;
+    text-align: right;
+    padding-right: 6px;
+  }
+
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 100;
+    justify-content: center;
+    align-items: flex-end;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #2c2c2e;
+    border-radius: 16px 16px 0 0;
+    padding: 20px 16px calc(32px + env(safe-area-inset-bottom));
+    width: 100%;
+    max-width: 500px;
+  }
+  .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 14px; color: #f5a623; text-align: center; }
+  .modal-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .modal-btn {
+    padding: 14px 6px;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .modal-btn.hit        { background: #1e5c2e; border-color: #2ecc71; color: #2ecc71; }
+  .modal-btn.out        { background: #5c1e1e; border-color: #e74c3c; color: #e74c3c; }
+  .modal-btn.walk       { background: #3a3a1e; border-color: #f5a623; color: #f5a623; }
+  .modal-btn.strikeout  { background: #4a1e5c; border-color: #9b59b6; color: #9b59b6; }
+  .modal-btn.error      { background: #5c3a1e; border-color: #e67e22; color: #e67e22; }
+  .modal-btn.clear      { background: #3a3a3c; border-color: #636366; color: #f2f2f7; }
+  .modal-cancel {
+    width: 100%;
+    padding: 14px;
+    background: #3a3a3c;
+    border: none;
+    border-radius: 10px;
+    color: #f2f2f7;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .legend {
+    margin: 0 12px 16px;
+    background: #2c2c2e;
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #8e8e93;
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 2px;
+    border: 1.5px solid;
+  }
+
+  .reset-btn {
+    margin: 0 12px;
+    width: calc(100% - 24px);
+    padding: 12px;
+    background: #5c1e1e;
+    border: 1.5px solid #e74c3c;
+    border-radius: 10px;
+    color: #e74c3c;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  @media (max-width: 390px) {
+    .inning-header, .player-row, .inning-totals-row {
+      grid-template-columns: 26px 1fr 40px repeat(6, 30px) 38px 38px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="installBanner">
+  <strong>📲 Add to Home Screen for the best experience</strong><br>
+  Tap the <strong>Share</strong> button (box with arrow) → <strong>"Add to Home Screen"</strong>
+  <br><button onclick="document.getElementById('installBanner').style.display='none'">Got it ✓</button>
+</div>
+
+<header>
+  <h1>⚾ Baseball Scoresheet</h1>
+  <p>Tap inning cell to record play • Tap R to toggle run scored</p>
+</header>
+
+<div class="game-info">
+  <input type="text" id="gameDate" placeholder="📅 Date" />
+  <input type="text" id="gameLocation" placeholder="📍 Field / Venue" />
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTeam(0)">🔵 Home Team</button>
+  <button class="tab-btn" onclick="switchTeam(1)">🔴 Away Team</button>
+</div>
+
+<div class="team-section active" id="team-0">
+  <div class="team-header">
+    <input type="text" placeholder="Home Team Name" id="teamName0" />
+    <div class="team-score-badge" id="teamScore0">0</div>
+  </div>
+  <div class="scoresheet" id="scoresheet0"></div>
+</div>
+
+<div class="team-section" id="team-1">
+  <div class="team-header">
+    <input type="text" placeholder="Away Team Name" id="teamName1" />
+    <div class="team-score-badge" id="teamScore1">0</div>
+  </div>
+  <div class="scoresheet" id="scoresheet1"></div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#1e5c2e;border-color:#2ecc71"></div>Hit</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#5c1e1e;border-color:#e74c3c"></div>Out</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4a1e5c;border-color:#9b59b6"></div>K Strikeout</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3a3a1e;border-color:#f5a623"></div>BB Walk</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1e3a5c;border-color:#3498db"></div>R Run Scored</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#5c3a1e;border-color:#e67e22"></div>Error</div>
+</div>
+
+<button class="reset-btn" onclick="confirmReset()">🗑️ Reset Scoresheet</button>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">Record Play</h3>
+    <div class="modal-grid">
+      <button class="modal-btn hit"       onclick="selectPlay('hit')">🟢 Hit</button>
+      <button class="modal-btn out"       onclick="selectPlay('out')">🔴 Out</button>
+      <button class="modal-btn strikeout" onclick="selectPlay('strikeout')">🟣 Strikeout (K)</button>
+      <button class="modal-btn walk"      onclick="selectPlay('walk')">🟡 Walk (BB)</button>
+      <button class="modal-btn error"     onclick="selectPlay('error')">🟠 Error</button>
+      <button class="modal-btn clear"     onclick="selectPlay('')">✖ Clear</button>
+    </div>
+    <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+  </div>
+</div>
+
+<script>
+// ── Generate apple-touch-icon via canvas ──────────────────────────────────
+(function() {
+  try {
+    const c = document.createElement('canvas');
+    c.width = 180; c.height = 180;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#0a2240';
+    ctx.fillRect(0,0,180,180);
+    ctx.font = '120px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⚾', 90, 95);
+    document.getElementById('appleIcon').href = c.toDataURL('image/png');
+  } catch(e) {}
+})();
+
+// ── Show install banner only when NOT already in standalone mode ──────────
+if (!window.navigator.standalone) {
+  document.getElementById('installBanner').style.display = 'block';
+}
+
+// ── Service Worker for offline support ───────────────────────────────────
+if ('serviceWorker' in navigator) {
+  const swCode = `
+    const CACHE = 'scoresheet-v1';
+    self.addEventListener('install', e => {
+      self.skipWaiting();
+    });
+    self.addEventListener('fetch', e => {
+      e.respondWith(
+        caches.open(CACHE).then(cache =>
+          cache.match(e.request).then(cached => {
+            if (cached) return cached;
+            return fetch(e.request).then(resp => {
+              cache.put(e.request, resp.clone());
+              return resp;
+            }).catch(() => cached);
+          })
+        )
+      );
+    });
+  `;
+  const blob = new Blob([swCode], {type: 'application/javascript'});
+  const swUrl = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl).catch(() => {});
+}
+
+// ── App State ─────────────────────────────────────────────────────────────
+const INNINGS = 6;
+const PLAYERS = 12;
+
+function freshPlayer() {
+  return {
+    name: '', pos: '', pitches: '',
+    innings: Array.from({length: INNINGS}, () => ({ play: '', run: false }))
+  };
+}
+
+const state = [
+  Array.from({length: PLAYERS}, freshPlayer),
+  Array.from({length: PLAYERS}, freshPlayer)
+];
+
+let pendingCell = null;
+const playLabels = { hit:'H', out:'O', walk:'BB', strikeout:'K', error:'E', '':'' };
+
+// ── Persist state to localStorage ────────────────────────────────────────
+function saveState() {
+  try { localStorage.setItem('bss_state', JSON.stringify(state)); } catch(e){}
+}
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('bss_state'));
+    if (!saved) return;
+    for (let t = 0; t < 2; t++) {
+      for (let p = 0; p < PLAYERS; p++) {
+        if (saved[t] && saved[t][p]) {
+          state[t][p].name    = saved[t][p].name    || '';
+          state[t][p].pos     = saved[t][p].pos     || '';
+          state[t][p].pitches = saved[t][p].pitches || '';
+          for (let i = 0; i < INNINGS; i++) {
+            if (saved[t][p].innings && saved[t][p].innings[i]) {
+              state[t][p].innings[i].play = saved[t][p].innings[i].play || '';
+              state[t][p].innings[i].run  = saved[t][p].innings[i].run  || false;
+            }
+          }
+        }
+      }
+    }
+    // Restore game info fields
+    const gi = JSON.parse(localStorage.getItem('bss_gameinfo') || '{}');
+    if (gi.date)     document.getElementById('gameDate').value     = gi.date;
+    if (gi.location) document.getElementById('gameLocation').value = gi.location;
+    if (gi.name0)    document.getElementById('teamName0').value    = gi.name0;
+    if (gi.name1)    document.getElementById('teamName1').value    = gi.name1;
+  } catch(e){}
+}
+function saveGameInfo() {
+  try {
+    localStorage.setItem('bss_gameinfo', JSON.stringify({
+      date:     document.getElementById('gameDate').value,
+      location: document.getElementById('gameLocation').value,
+      name0:    document.getElementById('teamName0').value,
+      name1:    document.getElementById('teamName1').value,
+    }));
+  } catch(e){}
+}
+['gameDate','gameLocation','teamName0','teamName1'].forEach(id => {
+  document.getElementById(id).addEventListener('input', saveGameInfo);
+});
+
+// ── Build Scoresheet ──────────────────────────────────────────────────────
+function buildScoresheet(team) {
+  const container = document.getElementById('scoresheet' + team);
+  container.innerHTML = '';
+
+  const hdr = document.createElement('div');
+  hdr.className = 'inning-header';
+  hdr.innerHTML =
+    `<span>#</span><span class="lbl">Player</span><span>Pos</span>` +
+    Array.from({length: INNINGS}, (_,i) => `<span>${i+1}</span>`).join('') +
+    `<span>PC</span><span>AB</span>`;
+  container.appendChild(hdr);
+
+  for (let p = 0; p < PLAYERS; p++) {
+    const row = document.createElement('div');
+    row.className = 'player-row';
+
+    const numDiv = document.createElement('div');
+    numDiv.className = 'player-num';
+    numDiv.textContent = p + 1;
+
+    const nameIn = document.createElement('input');
+    nameIn.className = 'player-name-input';
+    nameIn.placeholder = `Player ${p+1}`;
+    nameIn.value = state[team][p].name;
+    nameIn.addEventListener('input', e => { state[team][p].name = e.target.value; saveState(); });
+
+    const posIn = document.createElement('input');
+    posIn.className = 'pos-input';
+    posIn.placeholder = 'POS';
+    posIn.maxLength = 3;
+    posIn.value = state[team][p].pos;
+    posIn.addEventListener('input', e => { state[team][p].pos = e.target.value.toUpperCase(); saveState(); });
+
+    row.appendChild(numDiv);
+    row.appendChild(nameIn);
+    row.appendChild(posIn);
+
+    for (let inn = 0; inn < INNINGS; inn++) {
+      const wrap = document.createElement('div');
+      wrap.className = 'inning-cell-wrap';
+
+      const cell = document.createElement('div');
+      cell.className = 'inning-cell';
+      const play = state[team][p].innings[inn].play;
+      if (play) { cell.classList.add(play); cell.textContent = playLabels[play]; }
+      cell.addEventListener('click', () => openModal(team, p, inn));
+
+      const runBtn = document.createElement('div');
+      runBtn.className = 'run-toggle' + (state[team][p].innings[inn].run ? ' scored' : '');
+      runBtn.textContent = 'R';
+      runBtn.id = `run-${team}-${p}-${inn}`;
+      runBtn.addEventListener('click', () => {
+        state[team][p].innings[inn].run = !state[team][p].innings[inn].run;
+        runBtn.classList.toggle('scored', state[team][p].innings[inn].run);
+        updateTotals(team);
+        saveState();
+      });
+
+      wrap.appendChild(cell);
+      wrap.appendChild(runBtn);
+      row.appendChild(wrap);
+    }
+
+    const pcIn = document.createElement('input');
+    pcIn.type = 'number';
+    pcIn.className = 'pitch-count-input';
+    pcIn.min = 0; pcIn.max = 999;
+    pcIn.placeholder = '0';
+    pcIn.value = state[team][p].pitches || '';
+    pcIn.addEventListener('input', e => {
+      state[team][p].pitches = e.target.value;
+      updateTotals(team);
+      saveState();
+    });
+
+    const abDiv = document.createElement('div');
+    abDiv.className = 'ab-total';
+    abDiv.id = `ab-${team}-${p}`;
+    abDiv.textContent = calcAB(team, p) || '';
+
+    row.appendChild(pcIn);
+    row.appendChild(abDiv);
+    container.appendChild(row);
+  }
+
+  const totRow = document.createElement('div');
+  totRow.className = 'inning-totals-row';
+  totRow.innerHTML = `<span></span><span class="total-label" style="grid-column:span 2">Inning Runs →</span>`;
+  for (let inn = 0; inn < INNINGS; inn++) {
+    const cell = document.createElement('div');
+    cell.className = 'inning-total-cell';
+    cell.id = `innTotal-${team}-${inn}`;
+    totRow.appendChild(cell);
+  }
+  const pcTotal = document.createElement('div');
+  pcTotal.className = 'inning-total-cell';
+  pcTotal.id = `pcTotal-${team}`;
+  pcTotal.style.color = '#3498db';
+  const abTotal = document.createElement('div');
+  abTotal.className = 'inning-total-cell';
+  abTotal.id = `abTotal-${team}`;
+  abTotal.style.color = '#f5a623';
+  totRow.appendChild(pcTotal);
+  totRow.appendChild(abTotal);
+  container.appendChild(totRow);
+
+  updateTotals(team);
+}
+
+function calcAB(team, p) {
+  return state[team][p].innings.filter(x => x.play !== '').length;
+}
+
+function updateTotals(team) {
+  let totalRuns = 0, totalAB = 0, totalPC = 0;
+  for (let inn = 0; inn < INNINGS; inn++) {
+    let innRuns = state[team].filter(pl => pl.innings[inn].run).length;
+    const el = document.getElementById(`innTotal-${team}-${inn}`);
+    if (el) el.textContent = innRuns || '';
+    totalRuns += innRuns;
+  }
+  for (let p = 0; p < PLAYERS; p++) {
+    const ab = calcAB(team, p);
+    totalAB += ab;
+    const abEl = document.getElementById(`ab-${team}-${p}`);
+    if (abEl) abEl.textContent = ab || '';
+    totalPC += parseInt(state[team][p].pitches || 0);
+  }
+  const pcEl = document.getElementById(`pcTotal-${team}`);
+  const abEl = document.getElementById(`abTotal-${team}`);
+  if (pcEl) pcEl.textContent = totalPC || '';
+  if (abEl) abEl.textContent = totalAB || '';
+  document.getElementById('teamScore' + team).textContent = totalRuns;
+}
+
+function openModal(team, player, inning) {
+  pendingCell = {team, player, inning};
+  const pname = state[team][player].name || `Player ${player+1}`;
+  document.getElementById('modalTitle').textContent = `${pname} — Inning ${inning+1}`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function selectPlay(play) {
+  if (!pendingCell) return;
+  const {team, player, inning} = pendingCell;
+  state[team][player].innings[inning].play = play;
+  const rows = document.getElementById('scoresheet' + team).querySelectorAll('.player-row');
+  const wraps = rows[player].querySelectorAll('.inning-cell-wrap');
+  const cell = wraps[inning].querySelector('.inning-cell');
+  cell.className = 'inning-cell' + (play ? ' ' + play : '');
+  cell.textContent = playLabels[play];
+  updateTotals(team);
+  saveState();
+  closeModal();
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  pendingCell = null;
+}
+
+function switchTeam(idx) {
+  document.querySelectorAll('.team-section').forEach((s,i) => s.classList.toggle('active', i === idx));
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i === idx));
+}
+
+function confirmReset() {
+  if (confirm('Reset entire scoresheet? This cannot be undone.')) {
+    for (let t = 0; t < 2; t++)
+      for (let p = 0; p < PLAYERS; p++) state[t][p] = freshPlayer();
+    buildScoresheet(0);
+    buildScoresheet(1);
+    ['teamName0','teamName1','gameDate','gameLocation'].forEach(id => document.getElementById(id).value = '');
+    try { localStorage.removeItem('bss_state'); localStorage.removeItem('bss_gameinfo'); } catch(e){}
+  }
+}
+
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────
+loadState();
+buildScoresheet(0);
+buildScoresheet(1);
+</script>
+</body>
+</html>
